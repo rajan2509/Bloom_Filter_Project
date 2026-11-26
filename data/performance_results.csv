@@ -1,0 +1,4 @@
+method,median_time_seconds,found_records,total_queries,database_lookups
+Bloom Filter + SQLite,0.04970370000228286,2000,4000,2038
+Python Set,0.0003834000017377548,2000,4000,0
+SQLite Direct Lookup,0.06370940000124392,2000,4000,4000
