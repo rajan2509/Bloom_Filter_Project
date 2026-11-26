@@ -178,6 +178,34 @@ A Bloom Filter is a probabilistic membership-checking structure.
 
 It does not independently determine whether a URL is malicious or whether a username is genuinely registered. Positive results must be verified against the original database.
 
+## Interactive Username and URL Checking
+
+The project includes an interactive membership checker that allows users to check whether a username or URL may exist in the database.
+
+### How to Run
+
+1. Open the project folder in the terminal.
+2. Run the following command:
+
+```bash
+python src/integration.py
+```
+
+3. Select the type of item you want to check:
+   - Username
+   - URL
+4. Enter the username or URL when prompted.
+5. The program checks the item using the Bloom Filter and verifies possible matches against the SQLite database.
+
+### Understanding the Results
+
+- **Definitely Not Present:** The Bloom Filter confirms that the item is not in the database.
+- **Possibly Present:** The Bloom Filter indicates a possible match, so the SQLite database performs the final verification.
+- **Found in Database:** The item exists in the database.
+- **Not Found in Database:** The item does not exist in the database.
+
+**Note:** A Bloom Filter can produce false positives. Therefore, a positive result must always be verified using the database.
+
 ## 12. Conclusion
 
 This project demonstrates how Bloom Filters can reduce unnecessary database lookups while using compact memory.
