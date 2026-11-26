@@ -1,135 +1,120 @@
 
 import sqlite3
 from pathlib import Path
-
 from bloom_filter import BloomFilter
 
+# Database location
+DB_PATH = Path("data/bloom_filter.db")
 
-# Project paths
-PROJECT_FOLDER = Path(__file__).resolve().parent.parent
+# Bloom Filter configuration
+FILTER_SIZE = 16000
+HASH_COUNT = 6
 
-DATABASE_FILE = PROJECT_FOLDER / "data" / "bloom_filter.db"
 
+def load_bloom_filter():
+    """Load all database records into the Bloom Filter."""
 
-def load_bloom_filter(connection):
+    bloom = BloomFilter(size=FILTER_SIZE, hash_count=HASH_COUNT)
 
-    # 16,000 bits and 6 hash functions
-    bloom = BloomFilter(
-        size=16000,
-        hash_count=6
-    )
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT item_type, item_value
-        FROM checked_items
-        """
-    )
-
+    cursor.execute("SELECT item_type, item_value FROM checked_items")
     records = cursor.fetchall()
 
-    # Insert database records into Bloom Filter
     for item_type, item_value in records:
+        key = f"{item_type}:{item_value}"
+        bloom.add(key)
 
-        unique_item = f"{item_type}:{item_value}"
+    conn.close()
 
-        bloom.add(unique_item)
-
-    print("Bloom Filter loaded successfully!")
-    print("Total records inserted:", len(records))
-
-    return bloom
+    return bloom, len(records)
 
 
-def check_item(bloom, connection, item_type, item_value):
+def check_membership(item_type, item_value, bloom):
+    """Check an item using Bloom Filter and SQLite."""
 
-    unique_item = f"{item_type}:{item_value}"
+    key = f"{item_type}:{item_value}"
 
-    # First check the Bloom Filter
-    if not bloom.might_contain(unique_item):
+    # Step 1: Check Bloom Filter
+    if not bloom.might_contain(key):
+        return False, "Database lookup skipped (definitely absent)"
 
-        print(f"\n{item_value}")
-        print("Bloom Filter: Definitely absent")
-        print("Database lookup: Skipped")
-        print("Final result: NOT FOUND")
-
-        return
-
-    # If possibly present, verify using SQLite
-    print(f"\n{item_value}")
-    print("Bloom Filter: Possibly present")
-    print("Checking SQLite database...")
-
-    cursor = connection.cursor()
+    # Step 2: Verify possible match in SQLite
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
     cursor.execute(
         """
-        SELECT 1
-        FROM checked_items
-        WHERE item_type = ?
-        AND item_value = ?
-        LIMIT 1
+        SELECT 1 FROM checked_items
+        WHERE item_type = ? AND item_value = ?
         """,
         (item_type, item_value)
     )
 
     result = cursor.fetchone()
+    conn.close()
 
-    if result:
-        print("Final result: FOUND in database")
-    else:
-        print("Final result: NOT FOUND (False Positive)")
+    return result is not None, "SQLite database verification completed"
 
 
 def main():
-
-    connection = sqlite3.connect(DATABASE_FILE)
-
-    print("BLOOM FILTER + SQLITE INTEGRATION")
+    print("\n" + "=" * 50)
+    print("INTERACTIVE BLOOM FILTER MEMBERSHIP CHECKER")
     print("=" * 50)
 
-    bloom = load_bloom_filter(connection)
+    if not DB_PATH.exists():
+        print("\nDatabase not found!")
+        print("Please run: python src/database.py")
+        return
 
-    print("\nMEMBERSHIP TESTS")
-    print("-" * 50)
+    bloom, total_records = load_bloom_filter()
 
-    # Test existing username
-    check_item(
-        bloom,
-        connection,
-        "username",
-        "registered_user_10"
-    )
+    print("\nBloom Filter loaded successfully!")
+    print(f"Total database records: {total_records}")
 
-    # Test unknown username
-    check_item(
-        bloom,
-        connection,
-        "username",
-        "unknown_user_9999"
-    )
+    while True:
+        print("\n" + "-" * 50)
+        print("1. Check Username")
+        print("2. Check URL")
+        print("3. Exit")
 
-    # Test existing URL
-    check_item(
-        bloom,
-        connection,
-        "url",
-        "https://example10.com"
-    )
+        choice = input("\nEnter your choice (1-3): ").strip()
 
-    # Test unknown URL
-    check_item(
-        bloom,
-        connection,
-        "url",
-        "https://unknown-example9999.com"
-    )
+        if choice == "3":
+            print("\nThank you for using the checker!")
+            break
 
-    connection.close()
+        if choice == "1":
+            item_type = "username"
+            item_value = input("Enter username: ").strip()
 
-    print("\nIntegration testing completed!")
+        elif choice == "2":
+            item_type = "url"
+            item_value = input("Enter URL: ").strip()
+
+        else:
+            print("Invalid choice! Please enter 1, 2, or 3.")
+            continue
+
+        if not item_value:
+            print("Input cannot be empty. Please try again.")
+            continue
+
+        print("\nChecking Bloom Filter...")
+
+        found, message = check_membership(
+            item_type,
+            item_value,
+            bloom
+        )
+
+        print(message)
+
+        if found:
+            print("\nRESULT: FOUND in database")
+        else:
+            print("\nRESULT: NOT FOUND in database")
 
 
 if __name__ == "__main__":
